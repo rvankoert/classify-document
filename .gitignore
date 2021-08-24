@@ -1,0 +1,7 @@
+__pycache__/
+models/
+venv/
+.idea/
+results.txt
+checkpoints/
+plot.png
