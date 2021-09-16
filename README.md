@@ -14,10 +14,9 @@ validationdir -> forms
 Make sure none of the images are duplicated between train and validation
 
 
-Commands are Case Sensitive!
 train a model:
-python3.6 main.py --train True --train_set /home/rutger/data/republic/train/ \
- --validate True \
+python3.6 main.py --do_train --train_set /home/rutger/data/republic/train/ \
+ --do_validate \
  --validation_set /home/rutger/data/republic/validation/ \
  --seed 42 \
  --gpu 0
@@ -29,7 +28,7 @@ Inference a model:
 make sure the data is in a directory called "data" like this
 /home/rutger/data/republic/data
 and then call like this:
-python3.6 main.py --inference True --inference_set /home/rutger/data/republic/
+python3 main.py --do_inference --inference_set /home/rutger/data/republic/
 
 
 # classify-document

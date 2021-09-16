@@ -15,6 +15,7 @@ import tensorflow as tf
 from sklearn.metrics import classification_report, confusion_matrix
 import argparse
 import random
+from pathlib import Path
 
 
 def resize_with_aspect(input):
@@ -50,16 +51,12 @@ parser.add_argument('--pretrain', metavar='pretrain', type=bool, default=False,
                     help='pretrain')
 parser.add_argument('--pre_train_epochs', metavar='pre_train_epochs', type=int, default=5,
                     help='pre_train_epochs to be used')
-parser.add_argument('--train', metavar='train', type=bool, default=False,
-                    help='train')
+parser.add_argument('--do_train', help='train', action='store_true')
 parser.add_argument('--use_class_weights', metavar='use_class_weights', type=bool, default=False,
                     help='use_class_weights')
-parser.add_argument('--validate', metavar='validate', type=bool, default=False,
-                    help='validate')
-parser.add_argument('--test', metavar='test', type=bool, default=False,
-                    help='test')
-parser.add_argument('--inference', metavar='inference', type=bool, default=False,
-                    help='inference')
+parser.add_argument('--do_validate', action='store_true', help='validate')
+parser.add_argument('--do_test', action='store_true', help='test')
+parser.add_argument('--do_inference', action='store_true', help='inference')
 parser.add_argument('--existing_model', metavar='existing_model ', type=str, default=None,
                     help='existing_model')
 parser.add_argument('--loss', metavar='loss ', type=str, default="binary_crossentropy",
@@ -82,17 +79,6 @@ parser.add_argument('--inference_set', metavar='inference_set ', type=str,
 args = parser.parse_args()
 options = vars(args)
 print(options)
-# config.SEED = args.seed
-# config.GPU = args.gpu
-# config.LEARNING_RATE = args.learning_rate
-# config.IMG_SHAPE = (args.height, args.width, args.channels)
-# config.BATCH_SIZE = args.batch_size
-# config.EPOCHS = args.epochs
-# config.BASE_OUTPUT = args.output
-# config.MODEL_NAME = args.model_name
-# config.EXISTING_MODEL = args.existing_model
-# config.OPTIMIZER = args.optimizer
-# config.LOSS = args.loss
 
 random.seed(args.seed)
 np.random.seed(args.seed)
@@ -107,7 +93,7 @@ if args.gpu >= 0:
 
 validation_generator = None
 classes = None
-if args.validate:
+if args.do_validate:
     validation_datagen = ImageDataGenerator(
         rescale=(1. / 255)
     )
@@ -123,8 +109,8 @@ if args.validate:
         shuffle=False
     )  # set as validation data
 
-classes_file = args.output+"/classes.txt"
-if args.train:
+classes_file = args.output + "/classes.txt"
+if args.do_train:
     train_datagen = ImageDataGenerator(
         rescale=(1. / 255),
         rotation_range=20,
@@ -145,13 +131,13 @@ if args.train:
         shuffle=True,
     )  # set as training data
 
-    # print(train_generator.class_indices.keys())
     text_file = open(classes_file, "w")
     n = text_file.write(str(train_generator.class_indices))
     text_file.close()
 
     earlyStopping = EarlyStopping(monitor='val_accuracy', patience=20, verbose=0, mode='max')
-    mcp_save = ModelCheckpoint(args.output+'/checkpoints/best_val/', save_best_only=True, monitor='val_accuracy', mode='max')
+    mcp_save = ModelCheckpoint(args.output + '/checkpoints/best_val/', save_best_only=True, monitor='val_accuracy',
+                               mode='max')
     reduce_lr_loss = ReduceLROnPlateau(monitor='val_accuracy', factor=0.6, patience=5, verbose=1, min_delta=1e-4,
                                        cooldown=3,
                                        mode='max')
@@ -194,8 +180,6 @@ if args.train:
                             epochs=args.pre_train_epochs,
                             callbacks=[earlyStopping, mcp_save, reduce_lr_loss],
                             class_weight=class_weights,
-                            # use_multiprocessing=True,
-                            # workers=16
                             )
 
     for layer in model.layers:
@@ -207,18 +191,16 @@ if args.train:
                         epochs=args.epochs,
                         callbacks=[earlyStopping, mcp_save, reduce_lr_loss],
                         class_weight=class_weights,
-                        # use_multiprocessing=True,
-                        # workers=16
                         )
 
-    model.save(args.output+'/models/last_model')
+    model.save(args.output + '/models/last_model')
     # # plot the training history
     print("[INFO] plotting training history...")
-    utils.plot_training(history, args.output+'/plot.png')
+    utils.plot_training(history, args.output + '/plot.png')
 
-if args.validate:
+if args.do_validate:
 
-    model = keras.models.load_model(args.output+'/checkpoints/best_val')
+    model = keras.models.load_model(args.output + '/checkpoints/best_val')
 
     with open(classes_file, 'r') as file:
         class_indices = eval(file.read().replace('\n', ''))
@@ -243,19 +225,17 @@ if args.validate:
     target_names = class_indices.keys()
     print(classification_report(validation_generator.classes, y_pred, target_names=target_names))
 
-if args.test:
-    model = keras.models.load_model('checkpoints/best_val')
+if args.do_test:
+    model = keras.models.load_model(args.output + '/checkpoints/best_val')
     test_datagen = ImageDataGenerator(rescale=1. / 255)
 
     test_generator = test_datagen.flow_from_directory(
-        # '/home/rutger/republic/randomprinttest/',
-        args.test,
+        args.test_set,
         target_size=(config.SHAPE[0], config.SHAPE[1]),
         color_mode="rgb",
         shuffle=False,
         class_mode='categorical',
         batch_size=args.batch_size,
-        classes=["statengeneraalpilotall"],
     )
 
     filenames = test_generator.filenames
@@ -281,19 +261,27 @@ if args.test:
 
         sys.stdout = original_stdout
 
-if args.inference:
-    model = keras.models.load_model(args.output+'/checkpoints/best_val')
-    test_datagen = ImageDataGenerator(rescale=1. / 255)
+if args.do_inference:
+    print('inferencing...')
+    model_to_load = args.output + '/checkpoints/best_val'
+    if args.existing_model:
+        model_to_load = args.existing_model
 
+    print('using model ' + model_to_load)
+    model = keras.models.load_model(model_to_load)
+
+    test_datagen = ImageDataGenerator(rescale=1. / 255)
+    path = Path(args.inference_set)
+    path = path.parent.absolute()
+    target_class = os.path.basename(os.path.normpath(args.inference_set))
     test_generator = test_datagen.flow_from_directory(
-        # '/home/rutger/republic/randomprinttest/',
-        args.inference_set,
+        path,
         target_size=(config.SHAPE[0], config.SHAPE[1]),
         color_mode="rgb",
         shuffle=False,
         class_mode='categorical',
         batch_size=args.batch_size,
-        classes=["data"],
+        classes=[target_class],
     )
 
     filenames = test_generator.filenames
@@ -301,7 +289,8 @@ if args.inference:
 
     with open(classes_file, 'r') as file:
         class_indices = eval(file.read().replace('\n', ''))
-
+    print ('using class mappings: ')
+    print (class_indices)
     label_map = class_indices
 
     # test_generator.reset()
@@ -310,7 +299,9 @@ if args.inference:
     )
     y_classes = predict.argmax(axis=-1)
     original_stdout = sys.stdout
-    with open('results.txt', 'w') as f:
+    results_file = args.output + '/results.txt'
+    print('writing results to ' + results_file)
+    with open(results_file, 'w') as f:
         sys.stdout = f  # Change the standard output to the file we created.
         for i in range(nb_samples):
             try:
