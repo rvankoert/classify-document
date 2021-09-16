@@ -135,12 +135,12 @@ if args.do_train:
     n = text_file.write(str(train_generator.class_indices))
     text_file.close()
 
-    monitor= 'accuracy'
+    monitor = 'accuracy'
     if args.do_validate:
         monitor = 'val_accuracy'
     earlyStopping = EarlyStopping(monitor='val_accuracy', patience=20, verbose=0, mode='max')
     mcp_save = ModelCheckpoint(args.output + '/checkpoints/best_val/', save_best_only=True, monitor=monitor,
-                               mode='max')
+                               verbose=True, mode='max')
     reduce_lr_loss = ReduceLROnPlateau(monitor=monitor, factor=0.6, patience=5, verbose=1, min_delta=1e-4,
                                        cooldown=3,
                                        mode='max')
@@ -292,8 +292,8 @@ if args.do_inference:
 
     with open(classes_file, 'r') as file:
         class_indices = eval(file.read().replace('\n', ''))
-    print ('using class mappings: ')
-    print (class_indices)
+    print('using class mappings: ')
+    print(class_indices)
     label_map = class_indices
 
     # test_generator.reset()
