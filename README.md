@@ -31,4 +31,7 @@ and then call like this:
 python3 main.py --do_inference --inference_set /home/rutger/data/republic/
 
 
+if you have data that is not balanced (different numbers of items per class) it might make sense to add 
+--use_class_weights
+
 # classify-document

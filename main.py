@@ -52,7 +52,7 @@ parser.add_argument('--pretrain', metavar='pretrain', type=bool, default=False,
 parser.add_argument('--pre_train_epochs', metavar='pre_train_epochs', type=int, default=5,
                     help='pre_train_epochs to be used')
 parser.add_argument('--do_train', help='train', action='store_true')
-parser.add_argument('--use_class_weights', metavar='use_class_weights', type=bool, default=False,
+parser.add_argument('--use_class_weights', action='store_true',
                     help='use_class_weights')
 parser.add_argument('--do_validate', action='store_true', help='validate')
 parser.add_argument('--do_test', action='store_true', help='test')
@@ -135,10 +135,13 @@ if args.do_train:
     n = text_file.write(str(train_generator.class_indices))
     text_file.close()
 
+    monitor= 'accuracy'
+    if args.do_validate:
+        monitor = 'val_accuracy'
     earlyStopping = EarlyStopping(monitor='val_accuracy', patience=20, verbose=0, mode='max')
-    mcp_save = ModelCheckpoint(args.output + '/checkpoints/best_val/', save_best_only=True, monitor='val_accuracy',
+    mcp_save = ModelCheckpoint(args.output + '/checkpoints/best_val/', save_best_only=True, monitor=monitor,
                                mode='max')
-    reduce_lr_loss = ReduceLROnPlateau(monitor='val_accuracy', factor=0.6, patience=5, verbose=1, min_delta=1e-4,
+    reduce_lr_loss = ReduceLROnPlateau(monitor='monitor', factor=0.6, patience=5, verbose=1, min_delta=1e-4,
                                        cooldown=3,
                                        mode='max')
 
