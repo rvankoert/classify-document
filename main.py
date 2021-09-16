@@ -141,7 +141,7 @@ if args.do_train:
     earlyStopping = EarlyStopping(monitor='val_accuracy', patience=20, verbose=0, mode='max')
     mcp_save = ModelCheckpoint(args.output + '/checkpoints/best_val/', save_best_only=True, monitor=monitor,
                                mode='max')
-    reduce_lr_loss = ReduceLROnPlateau(monitor='monitor', factor=0.6, patience=5, verbose=1, min_delta=1e-4,
+    reduce_lr_loss = ReduceLROnPlateau(monitor=monitor, factor=0.6, patience=5, verbose=1, min_delta=1e-4,
                                        cooldown=3,
                                        mode='max')
 
