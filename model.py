@@ -1,18 +1,11 @@
 from tensorflow.keras.models import Model
-from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import GlobalAveragePooling2D
-from tensorflow.keras.layers import GlobalMaxPooling2D
-from tensorflow.keras.layers import MaxPooling2D
-from tensorflow.keras.layers import Lambda
-from tensorflow.keras.layers import AveragePooling2D
 import tensorflow as tf
 from tensorflow.python.keras.applications.vgg16 import VGG16
 from tensorflow.python.keras.applications.xception import Xception
-
 
 class classifier:
     def build_classifier_model_A(inputShape, numClasses):
@@ -263,7 +256,7 @@ class classifier:
         return model
 
     def build_Xception_imagenet(inputShape, numClasses):
-        model = tf.keras.Sequential()
+        # model = tf.keras.Sequential()
         # model.add(VGG16(weights='imagenet'))
         # VGG = VGG16(include_top=False, weights='imagenet', input_shape=inputShape)
         # VGG = VGG16(weights='imagenet')
@@ -275,6 +268,7 @@ class classifier:
         # for layer in model.layers[:10]:
         #     layer.trainable = False
         # flat1 = Flatten()()
+        model.summary()
         flat1 = GlobalAveragePooling2D(name="GlobalAveragePooling1")(model.layers[-1].output)
 
         # dropout1 = Dropout(0.5)(flat1)

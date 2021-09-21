@@ -1,8 +1,6 @@
 import random
 import numpy as np
-import cv2
 import tensorflow as tf
-#import tensorflow_io as tfio
 
 class Sample:
     "sample from the dataset"

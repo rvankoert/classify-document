@@ -2,7 +2,6 @@ import os
 from collections import Counter
 
 from keras_preprocessing.image import ImageDataGenerator
-import keras
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.python.ops.image_ops_impl import ResizeMethod
 
@@ -16,7 +15,6 @@ from sklearn.metrics import classification_report, confusion_matrix
 import argparse
 import random
 from pathlib import Path
-
 
 def resize_with_aspect(input):
     return tf.image.resize_with_pad(
@@ -156,7 +154,7 @@ if args.do_train:
 
     model = classifier.build_Xception_imagenet(config.SHAPE, num_classes)
 
-    accuracy = "accuracy"
+    accuracy = ["accuracy"]
 
     loss = "mse"
     if args.loss == "binary_crossentropy":
@@ -166,9 +164,9 @@ if args.do_train:
     if args.optimizer == "sgd":
         optimizer = tf.keras.optimizers.SGD(learning_rate=args.learning_rate, nesterov=False)
     if args.optimizer == "adam":
-        optimizer = keras.optimizers.Adam(learning_rate=args.learning_rate)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
     if args.optimizer == "adadelta":
-        optimizer = keras.optimizers.Adadelta(learning_rate=args.learning_rate, rho=0.95, epsilon=1e-07,
+        optimizer = tf.keras.optimizers.Adadelta(learning_rate=args.learning_rate, rho=0.95, epsilon=1e-07,
                                               name="Adadelta")
     if args.optimizer == "rmsprop":
         optimizer = tf.keras.optimizers.RMSprop(learning_rate=args.learning_rate)
@@ -205,7 +203,7 @@ if args.do_train:
 
 if args.do_validate:
 
-    model = keras.models.load_model(args.output + '/checkpoints/best_val')
+    model = tf.keras.models.load_model(args.output + '/checkpoints/best_val')
 
     with open(classes_file, 'r') as file:
         class_indices = eval(file.read().replace('\n', ''))
@@ -231,7 +229,7 @@ if args.do_validate:
     print(classification_report(validation_generator.classes, y_pred, target_names=target_names))
 
 if args.do_test:
-    model = keras.models.load_model(args.output + '/checkpoints/best_val')
+    model = tf.keras.models.load_model(args.output + '/checkpoints/best_val')
     test_datagen = ImageDataGenerator(rescale=1. / 255)
 
     test_generator = test_datagen.flow_from_directory(
@@ -273,7 +271,7 @@ if args.do_inference:
         model_to_load = args.existing_model
 
     print('using model ' + model_to_load)
-    model = keras.models.load_model(model_to_load)
+    model = tf.keras.models.load_model(model_to_load)
 
     test_datagen = ImageDataGenerator(rescale=1. / 255)
     path = Path(args.inference_set)
