@@ -4,8 +4,8 @@ from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import GlobalAveragePooling2D
 import tensorflow as tf
-from tensorflow.python.keras.applications.vgg16 import VGG16
-from tensorflow.python.keras.applications.xception import Xception
+from tensorflow.keras.applications.vgg16 import VGG16
+from tensorflow.keras.applications.xception import Xception
 
 class classifier:
     def build_classifier_model_A(inputShape, numClasses):

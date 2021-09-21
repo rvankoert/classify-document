@@ -2,7 +2,7 @@ import os
 from collections import Counter
 
 from keras_preprocessing.image import ImageDataGenerator
-from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.python.ops.image_ops_impl import ResizeMethod
 
 from utils import *
