@@ -1,1 +1,1 @@
-{'frontpage': 0, 'index': 1, 'resoluties': 2, 'respecten': 3}
+{'niveau1': 0, 'niveau2': 1, 'none': 2}

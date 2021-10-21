@@ -52,7 +52,7 @@ parser.add_argument('--pre_train_epochs', metavar='pre_train_epochs', type=int, 
 parser.add_argument('--do_train', help='train', action='store_true')
 parser.add_argument('--use_class_weights', action='store_true',
                     help='use_class_weights')
-parser.add_argument('--do_validate', action='store_true', help='validate')
+parser.add_argument('--do_validation', action='store_true', help='validation')
 parser.add_argument('--do_test', action='store_true', help='test')
 parser.add_argument('--do_inference', action='store_true', help='inference')
 parser.add_argument('--existing_model', metavar='existing_model ', type=str, default=None,
@@ -91,7 +91,7 @@ if args.gpu >= 0:
 
 validation_generator = None
 classes = None
-if args.do_validate:
+if args.do_validation:
     validation_datagen = ImageDataGenerator(
         rescale=(1. / 255)
     )
@@ -136,7 +136,7 @@ if args.do_train:
     text_file.close()
 
     monitor = 'accuracy'
-    if args.do_validate:
+    if args.do_validation:
         monitor = 'val_accuracy'
     earlyStopping = EarlyStopping(monitor='val_accuracy', patience=20, verbose=0, mode='max')
     mcp_save = ModelCheckpoint(args.output + '/checkpoints/best_val/', save_best_only=True, monitor=monitor,
@@ -201,7 +201,7 @@ if args.do_train:
     print("[INFO] plotting training history...")
     utils.plot_training(history, args.output + '/plot.png')
 
-if args.do_validate:
+if args.do_validation:
 
     model = tf.keras.models.load_model(args.output + '/checkpoints/best_val')
 
