@@ -1,7 +1,5 @@
-opencv_python==4.4.0.46
 tensorflow==2.5.1
 matplotlib==3.3.2
 numpy==1.19.4
-tensorflow_io==0.18.0
-scipy==1.5.4
 sklearn
+scikit-metrics
