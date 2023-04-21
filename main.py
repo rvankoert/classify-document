@@ -180,9 +180,8 @@ if args.do_train:
 
     if args.existing_model:
         model_to_load = args.existing_model
-
-    print('using model ' + model_to_load)
-    model = tf.keras.models.load_model(model_to_load)
+        print('using model ' + model_to_load)
+        model = tf.keras.models.load_model(model_to_load)
 
     if args.do_pretrain:
         model.summary()
