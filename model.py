@@ -131,7 +131,7 @@ class classifier:
 
             tf.keras.layers.Conv2D(96, (11, 11), strides=(4, 4), activation=tf.keras.layers.LeakyReLU(alpha=0.3)),
             tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2)),
-            tf.keras.layers.Dropout(0.2),
+            # tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Conv2D(256, (5, 5), strides=(1, 1), padding="same",
                                    activation=tf.keras.layers.LeakyReLU(alpha=0.3)),
             tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2)),
@@ -142,11 +142,11 @@ class classifier:
             tf.keras.layers.Conv2D(256, (3, 3), strides=(1, 1), padding="same",
                                    activation=tf.keras.layers.LeakyReLU(alpha=0.3)),
             tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2)),
-            tf.keras.layers.Dropout(0.2),
+            # tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Flatten(),
-            tf.keras.layers.Dropout(0.5),
+            # tf.keras.layers.Dropout(0.5),
             tf.keras.layers.Dense(4096, activation=tf.keras.layers.LeakyReLU(alpha=0.3)),
-            tf.keras.layers.Dropout(0.5),
+            # tf.keras.layers.Dropout(0.5),
             tf.keras.layers.Dense(4096, activation=tf.keras.layers.LeakyReLU(alpha=0.3)),
             tf.keras.layers.Dense(numClasses)
         ])
@@ -261,28 +261,34 @@ class classifier:
         # VGG = VGG16(include_top=False, weights='imagenet', input_shape=inputShape)
         # VGG = VGG16(weights='imagenet')
 
-        model = Xception(include_top=False, weights='imagenet', input_shape=inputShape)
+        model = Xception(include_top=False, weights='imagenet', input_shape=inputShape, classes=numClasses)
+        # model = Xception(include_top=False, weights=None, input_shape=inputShape, classes=numClasses, pooling=None)
 
         # for layer in model.layers[:10]:
         #     layer.trainable = False
         # for layer in model.layers[:10]:
         #     layer.trainable = False
         # flat1 = Flatten()()
-        model.summary()
-        flat1 = GlobalAveragePooling2D(name="GlobalAveragePooling1")(model.layers[-1].output)
+        # flat1 = Flatten()(model.layers[-1].output)
+        # flat2 = Dense(1024, name="fc_dense1", activation="elu")(flat1)
+        # output = Dense(numClasses, activation='softmax')(flat2)
 
-        # dropout1 = Dropout(0.5)(flat1)
+        model.summary()
+        # flat1 = GlobalAveragePooling2D(name="GlobalAveragePooling1")(model.layers[-1].output)
+
+        flat1 = Flatten()(model.layers[-1].output)
+        # # dropout1 = Dropout(0.5)(flat1)
         flat2 = Dense(1024, name="fc_dense1", activation="elu")(flat1)
-        dropout2 = Dropout(0.5)(flat2)
-        class1 = Dense(1024, name="fc_dense2", activation="elu")(dropout2)
-        dropout3 = Dropout(0.5)(class1)
-        output = Dense(numClasses, activation='softmax')(dropout3)
-        # define new model
+        # # flat2 = Dropout(0.5)(flat2)
+        # class1 = Dense(1024, name="fc_dense2", activation="elu")(flat2)
+        # # class1 = Dropout(0.5)(class1)
+        output = Dense(numClasses, activation='softmax')(flat2)
+        # # define new model
         model = Model(inputs=model.inputs, outputs=output)
-        for layer in model.layers[:126]:
-            if layer.name == 'fc_dense1':
-                break
-            layer.trainable = False
+        # for layer in model.layers[:126]:
+        #     if layer.name == 'fc_dense1':
+        #         break
+        #     layer.trainable = False
 
         # for layer in VGG.layers[:10]:
         #     layer.trainable = False

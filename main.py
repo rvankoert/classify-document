@@ -30,7 +30,7 @@ parser.add_argument('--gpu', metavar='gpu', type=int, default=0,
                     help='gpu to be used, use -1 for cpu')
 parser.add_argument('--percent_validation', metavar='percent_validation', type=float, default=0.15,
                     help='percent_validation to be used')
-parser.add_argument('--learning_rate', metavar='learning_rate', type=float, default=0.0001,
+parser.add_argument('--learning_rate', metavar='learning_rate', type=float, default=0.001,
                     help='learning_rate to be used')
 parser.add_argument('--epochs', metavar='epochs', type=int, default=5,
                     help='epochs to be used')
@@ -45,9 +45,8 @@ parser.add_argument('--channels', metavar='channels', type=int, default=3,
                     help='channels to be used')
 parser.add_argument('--output', metavar='output', type=str, default='output',
                     help='base output to be used')
-parser.add_argument('--pretrain', metavar='pretrain', type=bool, default=False,
-                    help='pretrain')
-parser.add_argument('--pre_train_epochs', metavar='pre_train_epochs', type=int, default=5,
+parser.add_argument('--do_pretrain', help='do_pretrain', action='store_true')
+parser.add_argument('--pre_train_epochs', metavar='pre_train_epochs', type=int, default=1,
                     help='pre_train_epochs to be used')
 parser.add_argument('--do_train', help='train', action='store_true')
 parser.add_argument('--use_class_weights', action='store_true',
@@ -57,12 +56,10 @@ parser.add_argument('--do_test', action='store_true', help='test')
 parser.add_argument('--do_inference', action='store_true', help='inference')
 parser.add_argument('--existing_model', metavar='existing_model ', type=str, default=None,
                     help='existing_model')
-parser.add_argument('--loss', metavar='loss ', type=str, default="binary_crossentropy",
-                    help='binary_crossentropy, mse')
-parser.add_argument('--optimizer', metavar='optimizer ', type=str, default='rmsprop',
-                    help='optimizer: adam, adadelta, rmsprop, sgd')
-parser.add_argument('--memory_limit', metavar='memory_limit ', type=int, default=4096,
-                    help='memory_limit for gpu. Default 4096')
+parser.add_argument('--loss', metavar='loss ', type=str, default="categorical_crossentropy",
+                    help='categorical_crossentropy, binary_crossentropy, mse')
+parser.add_argument('--optimizer', metavar='optimizer ', type=str, default='adam',
+                    help='optimizer: adam, adadelta, rmsprop, sgd. Default: adam')
 parser.add_argument('--train_set', metavar='train_set ', type=str, default='/home/rutger/data/republic/train/',
                     help='train_set to use for training')
 parser.add_argument('--validation_set', metavar='validation_set ', type=str,
@@ -83,17 +80,13 @@ np.random.seed(args.seed)
 tf.random.set_seed(args.seed)
 os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 os.environ['TF_DETERMINISTIC_OPS'] = '1'
-if args.gpu >= 0:
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    if (len(gpus) > 0):
-        tf.config.experimental.set_virtual_device_configuration(gpus[0], [
-            tf.config.experimental.VirtualDeviceConfiguration(memory_limit=args.memory_limit)])
 
 validation_generator = None
 classes = None
 if args.do_validation:
     validation_datagen = ImageDataGenerator(
-        rescale=(1. / 255)
+        rescale=(1. / 255),
+        preprocessing_function=tf.keras.applications.xception.preprocess_input
     )
 
     validation_generator = validation_datagen.flow_from_directory(
@@ -118,6 +111,7 @@ if args.do_train:
         zoom_range=[0.8, 1.2],
         brightness_range=[0.8, 1.2],
         channel_shift_range=20,
+        preprocessing_function=tf.keras.applications.xception.preprocess_input
     )
 
     train_generator = train_datagen.flow_from_directory(
@@ -153,13 +147,22 @@ if args.do_train:
         class_weights = {class_id: max_val / num_images for class_id, num_images in counter.items()}
 
     model = classifier.build_Xception_imagenet(config.SHAPE, num_classes)
+    # model = classifier.build_vgg16_imagenet(config.SHAPE, num_classes)
+    # model = classifier.build_classifier_model_E(config.SHAPE, num_classes)
 
+    for layer in model.layers:
+        layer.trainable = False
+    model.layers[-2].trainable = True
+    model.layers[-1].trainable = True
     accuracy = ["accuracy"]
 
     loss = "mse"
     if args.loss == "binary_crossentropy":
         loss = "binary_crossentropy"
-
+    elif args.loss == "categorical_crossentropy":
+        loss = "categorical_crossentropy"
+    elif args.loss == "sparse_categorical_crossentropy":
+        loss = "sparse_categorical_crossentropy"
     optimizer = tf.keras.optimizers.SGD(learning_rate=args.learning_rate, nesterov=False)
     if args.optimizer == "sgd":
         optimizer = tf.keras.optimizers.SGD(learning_rate=args.learning_rate, nesterov=False)
@@ -175,7 +178,13 @@ if args.do_train:
                   optimizer=optimizer,
                   metrics=accuracy)
 
-    if args.pretrain:
+    if args.existing_model:
+        model_to_load = args.existing_model
+
+    print('using model ' + model_to_load)
+    model = tf.keras.models.load_model(model_to_load)
+
+    if args.do_pretrain:
         model.summary()
         # pretrain
         history = model.fit(train_generator,
