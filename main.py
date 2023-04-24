@@ -146,9 +146,10 @@ if args.do_train:
     if args.use_class_weights:
         class_weights = {class_id: max_val / num_images for class_id, num_images in counter.items()}
 
-    model = classifier.build_Xception_imagenet(config.SHAPE, num_classes)
+    # model = classifier.build_Xception_imagenet(config.SHAPE, num_classes)
     # model = classifier.build_vgg16_imagenet(config.SHAPE, num_classes)
     # model = classifier.build_classifier_model_E(config.SHAPE, num_classes)
+    model = classifier.build_classifier_model_F(config.SHAPE, num_classes)
 
     for layer in model.layers:
         layer.trainable = False
