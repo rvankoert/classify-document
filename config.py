@@ -1,4 +1,4 @@
-SHAPE = (299, 299, 3)
+# SHAPE = (299, 299, 1)
 # SHAPE = (150, 150, 1)
 # LEARNING_RATE = 0.0001
 # BATCH_SIZE = 16
@@ -8,5 +8,5 @@ SHAPE = (299, 299, 3)
 # DO_TRAIN = True
 # DO_VALIDATION = True
 # DO_TEST = False
-COLOR_MODE = "rgb"
-CLASSES = ["index", "resoluties", "respecten", "frontpage"]
+# COLOR_MODE = "rgb"
+# CLASSES = ["index", "resoluties", "respecten", "frontpage"]

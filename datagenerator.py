@@ -6,7 +6,7 @@ import config
 
 class DataGenerator(keras.utils.Sequence):
 
-    def preprocess(self, img, imgSize) -> np.ndarray:
+    def preprocess(self, img, imgSize, preserve_aspect_ratio) -> np.ndarray:
         if img is None:
             img = np.zeros([imgSize[0], imgSize[1]], dtype=np.uint8)
             print("Image broken, zeroing")
@@ -25,23 +25,33 @@ class DataGenerator(keras.utils.Sequence):
         # img = img / 255.0
         # img = 1 - img
         # img = tf.image.resize_with_pad(img, imgSize[0], imgSize[1])  # rescale to have matching height with target image
-        img = tf.image.resize(img, (imgSize[0], imgSize[1]))  # rescale to have matching height with target image
+        img = tf.image.resize(img, (imgSize[0], imgSize[1]), preserve_aspect_ratio=preserve_aspect_ratio)  # rescale to have matching height with target image
         return img
 
     'Generates data for Keras'
 
-    def __init__(self, list_IDs, labels, batch_size=32, dim=(227, 227), n_channels=1,
-                 n_classes=10, shuffle=True):
-        'Initialization'
-        self.dim = dim
+    def __init__(self, list_IDs, labels, batch_size=32, height=227, width=227, channels=1,
+                 n_classes=10, shuffle=True, preserve_aspect_ratio=False):
+        self.height = height
+        self.width = width
         self.batch_size = batch_size
         self.labels = labels
         self.list_IDs = list_IDs
-        self.n_channels = n_channels
+        self.n_channels = channels
         self.n_classes = n_classes
         self.shuffle = shuffle
         self.on_epoch_end()
-
+        self.preserve_aspect_ratio = preserve_aspect_ratio
+        self.class_indices = {}
+        counter = 0
+        for label in labels:
+            if self.class_indices.keys().__contains__(label):
+                continue
+            self.class_indices[label] = counter
+            counter += 1
+        self.classes = []
+        for label in labels:
+            self.classes.append(self.class_indices[label])
 
     def __len__(self):
         'Denotes the number of batches per epoch'
@@ -56,7 +66,7 @@ class DataGenerator(keras.utils.Sequence):
         list_IDs_temp = [self.list_IDs[k] for k in indexes]
 
         # Generate data
-        X, y = self.__data_generation(list_IDs_temp)
+        X, y = self.__data_generation(indexes)
 
         return X, y
 
@@ -69,7 +79,7 @@ class DataGenerator(keras.utils.Sequence):
     def __data_generation(self, list_IDs_temp):
         'Generates data containing batch_size samples'  # X : (n_samples, *dim, n_channels)
         # Initialization
-        X = np.empty((self.batch_size, *self.dim, self.n_channels))
+        X = np.empty((self.batch_size, * (self.height, self.width), self.n_channels))
         y = np.empty((self.batch_size), dtype=int)
 
         # Generate data
@@ -77,9 +87,10 @@ class DataGenerator(keras.utils.Sequence):
             # Store sample
             # X[i,] = np.load('data/' + ID + '.npy')
 
-            X[i, ] = self.preprocess(ID, config.SHAPE)
+            X[i, ] = self.preprocess(self.list_IDs[ID], config.SHAPE, self.preserve_aspect_ratio)
 
             # Store class
-            y[i] = self.labels[ID]
+            print(ID)
+            y[i] = self.classes[ID]
 
-        return X, keras.utils.to_categorical(y, num_classes=self.n_classes)
+        return X, y

@@ -1,3 +1,4 @@
+from tensorflow import Tensor
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Flatten
@@ -7,8 +8,39 @@ import tensorflow as tf
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras import Input
-from tensorflow.keras.layers import Add, Conv2D, GlobalMaxPooling2D, MaxPooling2D
+from tensorflow.keras.layers import Add,Concatenate, Conv2D, GlobalMaxPooling2D, MaxPooling2D, ReLU, BatchNormalization, AveragePooling2D
 
+
+def relu_bn(inputs: Tensor) -> Tensor:
+    relu = ReLU()(inputs)
+    bn = BatchNormalization()(relu)
+    return bn
+
+
+def residual_block(x: Tensor, downsample: bool, filters: int, kernel_size: int = 3) -> Tensor:
+    y = Conv2D(kernel_size=kernel_size,
+               strides=(1 if not downsample else 2),
+               filters=filters,
+               padding="same")(x)
+    y = relu_bn(y)
+    y = Conv2D(kernel_size=kernel_size,
+               strides=1,
+               filters=filters,
+               padding="same")(y)
+    y = relu_bn(y)
+    y = Conv2D(kernel_size=kernel_size,
+               strides=1,
+               filters=filters,
+               padding="same")(y)
+
+    if downsample:
+        x = Conv2D(kernel_size=1,
+                   strides=2,
+                   filters=filters,
+                   padding="same")(x)
+    out = Add()([x, y])
+    out = relu_bn(out)
+    return out
 
 class classifier:
     def build_classifier_model_A(inputShape, numClasses):
@@ -183,6 +215,7 @@ class classifier:
 
         return model
 
+    # resnet-like
     def build_classifier_model_G(inputShape, numClasses):
         initializer = tf.keras.initializers.GlorotNormal(42)
 
@@ -231,7 +264,7 @@ class classifier:
                 kernel_initializer=initializer
             )(x2)
         x4 = Add()([x4,x3])
-        x4 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2))(x4)
+        x4 = MaxPooling2D(pool_size=(4, 4), strides=(3, 3))(x4)
         x1 = Conv2D(filters=128, kernel_size=[3, 3], strides=(1, 1),
                 activation='elu',
                 padding='same',
@@ -274,17 +307,141 @@ class classifier:
                 kernel_initializer=initializer
             )(x2)
         x4 = Add()([x4,x3])
+        x4 = MaxPooling2D(pool_size=(4, 4), strides=(3, 3))(x4)
+        x1 = Conv2D(filters=256, kernel_size=[3, 3], strides=(1, 1),
+                activation='elu',
+                padding='same',
+                # name="Conv1",
+                kernel_initializer=initializer
+            )(x4)
+
+        x2 = Conv2D(filters=256, kernel_size=[3, 3], strides=(1, 1),
+                activation='elu',
+                padding='same',
+                # name="Conv2",
+                kernel_initializer=initializer
+            )(x1)
+
+        x3 = Conv2D(filters=256, kernel_size=[3, 3], strides=(1, 1),
+                activation='elu',
+                padding='same',
+                # name="Conv3",
+                kernel_initializer=initializer
+            )(x2)
+        x4 = Add()([x1,x3])
+        x1 = Conv2D(filters=256, kernel_size=[3, 3], strides=(1, 1),
+                activation='elu',
+                padding='same',
+                # name="Conv1",
+                kernel_initializer=initializer
+            )(x4)
+
+        x2 = Conv2D(filters=256, kernel_size=[3, 3], strides=(1, 1),
+                activation='elu',
+                padding='same',
+                # name="Conv2",
+                kernel_initializer=initializer
+            )(x1)
+
+        x3 = Conv2D(filters=256, kernel_size=[3, 3], strides=(1, 1),
+                activation='elu',
+                padding='same',
+                # name="Conv3",
+                kernel_initializer=initializer
+            )(x2)
+        x4 = Add()([x4,x3])
+        x4 = MaxPooling2D(pool_size=(4, 4), strides=(3, 3))(x4)
+        x1 = Conv2D(filters=512, kernel_size=[3, 3], strides=(1, 1),
+                    activation='elu',
+                    padding='same',
+                    # name="Conv1",
+                    kernel_initializer=initializer
+                    )(x4)
+
+        x2 = Conv2D(filters=512, kernel_size=[3, 3], strides=(1, 1),
+                    activation='elu',
+                    padding='same',
+                    # name="Conv2",
+                    kernel_initializer=initializer
+                    )(x1)
+
+        x3 = Conv2D(filters=512, kernel_size=[3, 3], strides=(1, 1),
+                    activation='elu',
+                    padding='same',
+                    # name="Conv3",
+                    kernel_initializer=initializer
+                    )(x2)
+        x4 = Add()([x1, x3])
+        x1 = Conv2D(filters=512, kernel_size=[3, 3], strides=(1, 1),
+                    activation='elu',
+                    padding='same',
+                    # name="Conv1",
+                    kernel_initializer=initializer
+                    )(x4)
+
+        x2 = Conv2D(filters=512, kernel_size=[3, 3], strides=(1, 1),
+                    activation='elu',
+                    padding='same',
+                    # name="Conv2",
+                    kernel_initializer=initializer
+                    )(x1)
+
+        x3 = Conv2D(filters=512, kernel_size=[3, 3], strides=(1, 1),
+                    activation='elu',
+                    padding='same',
+                    # name="Conv3",
+                    kernel_initializer=initializer
+                    )(x2)
+        x4 = Add()([x4, x3])
+        x4 = MaxPooling2D(pool_size=(4, 4), strides=(3, 3))(x4)
         # x4 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2))(x4)
 
         flat1 = GlobalAveragePooling2D()(x4)
+        flat2 = GlobalMaxPooling2D()(x4)
+        flat1 = Concatenate()([flat1,flat2])
         # flat1 = Flatten()(x4)
         flat2 = Dense(1024, activation='elu')(flat1)
-        dropout2 = Dropout(0.5)(flat2)
-        class1 = Dense(1024, activation='elu')(dropout2)
-        dropout3 = Dropout(0.5)(class1)
-        output = Dense(numClasses, activation='softmax')(dropout3)
+        # dropout2 = Dropout(0.5)(flat2)
+        class1 = Dense(1024, activation='elu')(flat2)
+        # dropout3 = Dropout(0.5)(class1)
+        output = Dense(numClasses, activation='softmax')(class1)
         # define new model
         model = Model(inputs=input_img, outputs=output)
+
+        return model
+
+
+
+    def build_classifier_model_H(inputShape, num_classes):
+        initializer = tf.keras.initializers.GlorotNormal(42)
+
+        inputs = Input(
+            shape=inputShape, name="image"
+        )
+        num_filters = 16
+
+        t = BatchNormalization()(inputs)
+        t = Conv2D(kernel_size=3,
+                   strides=1,
+                   filters=num_filters,
+                   padding="same")(t)
+        t = relu_bn(t)
+
+        num_blocks_list = [2, 5, 5, 5, 5, 2]
+        for i in range(len(num_blocks_list)):
+            num_blocks = num_blocks_list[i]
+            for j in range(num_blocks):
+                t = residual_block(t, downsample=(j == 0 and i != 0), filters=num_filters)
+            num_filters *= 2
+
+        t = AveragePooling2D(4)(t)
+        t = Flatten()(t)
+        t = Dense(1024, activation='elu')(t)
+        t = Dense(1024, activation='elu')(t)
+
+        outputs = Dense(num_classes, activation='softmax')(t)
+
+        model = Model(inputs, outputs)
 
         return model
 
