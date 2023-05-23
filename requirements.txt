@@ -3,3 +3,4 @@ matplotlib
 numpy<1.24
 scikit-learn
 scikit-metrics
+keras_preprocessing

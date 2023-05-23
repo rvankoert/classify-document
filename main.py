@@ -97,7 +97,7 @@ def preprocess(img_path, label, height, width, num_classes) -> np.ndarray:
     # img_path, label, height, width = data
     # print(img_path)
     img = tf.io.read_file(img_path)
-    img = tf.image.decode_jpeg(img)
+    img = tf.image.decode_jpeg(img,3)
     # img = tf.image.random_brightness(img, 0.05)
     # img = tf.image.random_hue(img, 0.08)
     # img = tf.image.random_saturation(img, 0.6, 1.6)
@@ -261,6 +261,7 @@ if args.do_train:
     # model = classifier.build_classifier_model_E(config.SHAPE, num_classes)
     # model = classifier.build_classifier_model_F(config.SHAPE, num_classes)
     model = classifier.build_classifier_model_H((args.height, args.width, args.channels), num_classes)
+    model = classifier.build_classifier_model_I((args.height, args.width, args.channels), num_classes)
 
     for layer in model.layers:
         layer.trainable = False

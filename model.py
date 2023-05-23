@@ -445,6 +445,39 @@ class classifier:
 
         return model
 
+    def build_classifier_model_I(inputShape, num_classes):
+        initializer = tf.keras.initializers.GlorotNormal(42)
+
+        inputs = Input(
+            shape=inputShape, name="image"
+        )
+        num_filters = 16
+
+        t = BatchNormalization()(inputs)
+        t = Conv2D(kernel_size=3,
+                   strides=1,
+                   filters=num_filters,
+                   padding="same")(t)
+        t = relu_bn(t)
+
+        num_blocks_list = [2, 5, 5, 5, 5, 2]
+        for i in range(len(num_blocks_list)):
+            num_blocks = num_blocks_list[i]
+            for j in range(num_blocks):
+                t = residual_block(t, downsample=(j == 0 and i != 0), filters=num_filters)
+            num_filters *= 2
+
+        t = GlobalMaxPooling2D()(t)
+        t = Flatten()(t)
+        t = Dense(1024, activation='elu')(t)
+        t = Dense(1024, activation='elu')(t)
+
+        outputs = Dense(num_classes, activation='softmax')(t)
+
+        model = Model(inputs, outputs)
+
+        return model
+
     # reguires rgb
     def build_vgg16_imagenet(inputShape, numClasses):
         model = tf.keras.Sequential()
