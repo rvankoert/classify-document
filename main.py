@@ -31,42 +31,45 @@ def get_generator(set, training, class_indices):
 
     for directory in os.scandir(set):
         if directory.is_dir():
-            label = directory.name
-            for file in os.scandir(os.path.join(set, label)):
+            tmp_label = directory.name
+            for file in os.scandir(os.path.join(set, tmp_label)):
                 if file.is_file():
                     # print(file.path)
                     ids.append(file.path)
-                    labels.append(label)
-                    files.append((file.path, label))
+                    labels.append(tmp_label)
+                    files.append((file.path, tmp_label))
 
     counter = 0
     add_classes = False
     if class_indices is None:
-        class_indices = []
+        tmp_class_indices = []
         add_classes = True
+    else:
+        tmp_class_indices = class_indices
 
-    for label in labels:
-        if label in class_indices:
+    for tmp_label in labels:
+        if tmp_label in tmp_class_indices:
             continue
         if add_classes:
-            class_indices.append(label)
+            print('adding class: ' + tmp_label)
+            tmp_class_indices.append(tmp_label)
         else:
-            print("found new unknown label: " + label)
+            print("found new unknown label: " + tmp_label)
             exit()
         counter += 1
-    classes = []
-    for label in labels:
-        classes.append(class_indices.index(label))
+    tmp_classes = []
+    for tmp_label in labels:
+        tmp_classes.append(tmp_class_indices.index(tmp_label))
 
-    num_classes = len(class_indices)
+    num_classes = len(tmp_class_indices)
 
     new_train_files = []
     for file in files:
-        id =file[0]
-        label = class_indices.index(file[1])
-        new_train_files.append((id, str(label)))
+        id = file[0]
+        tmp_label = tmp_class_indices.index(file[1])
+        new_train_files.append((id, str(tmp_label)))
     train_files = new_train_files
-    print(train_files)
+    # print(train_files)
     # for file in train_files:
     #     file[1] =
 
@@ -78,32 +81,37 @@ def get_generator(set, training, class_indices):
         generator = (generator
                  .repeat()
                  .shuffle(len(train_files))
-                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, num_classes), num_parallel_calls=AUTOTUNE,
+                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, True), num_parallel_calls=AUTOTUNE,
                     deterministic=False)
                  .batch(args.batch_size)
                  .prefetch(AUTOTUNE)
                  ).apply(tf.data.experimental.assert_cardinality(train_batches))
     else:
         generator = (generator
-                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, num_classes), num_parallel_calls=AUTOTUNE,
+                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, False), num_parallel_calls=AUTOTUNE,
                     deterministic=False)
                  .batch(args.batch_size)
                  .prefetch(AUTOTUNE)
                  ).apply(tf.data.experimental.assert_cardinality(train_batches))
-    return generator, num_classes, class_indices, files, classes
+    return generator, num_classes, tmp_class_indices, files, tmp_classes
 
 @tf.function
-def preprocess(img_path, label, height, width, num_classes) -> np.ndarray:
+def preprocess(img_path, label, height, width, channels, num_classes, augment) -> np.ndarray:
     # img_path, label, height, width = data
     # print(img_path)
     img = tf.io.read_file(img_path)
-    img = tf.image.decode_jpeg(img,3)
+    img = tf.image.decode_jpeg(img, channels)
+    if augment:
     # img = tf.image.random_brightness(img, 0.05)
     # img = tf.image.random_hue(img, 0.08)
     # img = tf.image.random_saturation(img, 0.6, 1.6)
-    # img = tf.image.random_contrast(img, 0.7, 1.3)
+        img = tf.image.random_contrast(img, 0.7, 1.3)
+        # img = tf.keras.preprocessing.image.random_rotation(img, 0.2)
+
     # img = tf.image.rgb_to_grayscale(img)
     img = tf.image.resize(img, (height, width))  # rescale to have matching height with target image
+    img = 0.5 - img
+
     label = tf.strings.to_number(label, out_type='int32')
     categorical = tf.one_hot(label, depth=num_classes)
 
@@ -146,8 +154,8 @@ parser.add_argument('--existing_model', metavar='existing_model ', type=str, def
                     help='existing_model')
 parser.add_argument('--loss', metavar='loss ', type=str, default="categorical_crossentropy",
                     help='categorical_crossentropy, binary_crossentropy, mse')
-parser.add_argument('--optimizer', metavar='optimizer ', type=str, default='adam',
-                    help='optimizer: adam, adadelta, rmsprop, sgd. Default: adam')
+parser.add_argument('--optimizer', metavar='optimizer ', type=str, default='adamw',
+                    help='optimizer: adam, adadelta, rmsprop, sgd, adamw. Default: adamw')
 parser.add_argument('--train_set', metavar='train_set ', type=str, default='/home/rutger/data/republic/train/',
                     help='train_set to use for training')
 parser.add_argument('--validation_set', metavar='validation_set ', type=str,
@@ -174,6 +182,12 @@ if args.deterministic:
 validation_generator = None
 classes = None
 class_indices = None
+classes_file = args.output + "/classes.txt"
+if args.existing_model:
+    with open(classes_file, 'r') as file:
+        class_indices = eval(file.read().replace('\n', ''))
+
+print(class_indices)
 if args.validation_set:
     # validation_datagen = ImageDataGenerator(
     #     rescale=(1. / 255),
@@ -191,14 +205,9 @@ if args.validation_set:
     #     classes=classes,
     #     shuffle=False
     # )  # set as validation data
-    validation_generator, num_classes, class_indices, validation_files, validation_classes = get_generator(args.validation_set, False, None)
+    validation_generator, num_classes, class_indices, validation_files, validation_classes = get_generator(args.validation_set, False, class_indices)
 
     # print(class_indices)
-
-classes_file = args.output + "/classes.txt"
-
-
-
 
 
 if args.do_train:
@@ -261,7 +270,7 @@ if args.do_train:
     # model = classifier.build_classifier_model_E(config.SHAPE, num_classes)
     # model = classifier.build_classifier_model_F(config.SHAPE, num_classes)
     model = classifier.build_classifier_model_H((args.height, args.width, args.channels), num_classes)
-    model = classifier.build_classifier_model_I((args.height, args.width, args.channels), num_classes)
+    # model = classifier.build_classifier_model_I((args.height, args.width, args.channels), num_classes)
 
     for layer in model.layers:
         layer.trainable = False
@@ -281,20 +290,22 @@ if args.do_train:
         optimizer = tf.keras.optimizers.SGD(learning_rate=args.learning_rate, nesterov=False)
     if args.optimizer == "adam":
         optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
+    if args.optimizer == "adamw":
+        optimizer = tf.keras.optimizers.experimental.AdamW(learning_rate=args.learning_rate)
     if args.optimizer == "adadelta":
         optimizer = tf.keras.optimizers.Adadelta(learning_rate=args.learning_rate, rho=0.95, epsilon=1e-07,
                                               name="Adadelta")
     if args.optimizer == "rmsprop":
         optimizer = tf.keras.optimizers.RMSprop(learning_rate=args.learning_rate)
 
-    model.compile(loss=loss,
-                  optimizer=optimizer,
-                  metrics=accuracy)
-
     if args.existing_model:
         model_to_load = args.existing_model
         print('using model ' + model_to_load)
         model = tf.keras.models.load_model(model_to_load)
+
+    model.compile(loss=loss,
+                  optimizer=optimizer,
+                  metrics=accuracy)
 
     if args.do_pretrain:
         model.summary()
@@ -325,9 +336,6 @@ if args.do_train:
 if args.do_validation:
 
     model = tf.keras.models.load_model(args.output + '/checkpoints/best_val')
-
-    with open(classes_file, 'r') as file:
-        class_indices = eval(file.read().replace('\n', ''))
 
     nb_samples = len(validation_files)
     label_map = class_indices

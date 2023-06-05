@@ -8,11 +8,11 @@ import tensorflow as tf
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras import Input
-from tensorflow.keras.layers import Add,Concatenate, Conv2D, GlobalMaxPooling2D, MaxPooling2D, ReLU, BatchNormalization, AveragePooling2D
+from tensorflow.keras.layers import Add,Concatenate, Conv2D, GlobalMaxPooling2D, MaxPooling2D, ReLU, ELU, BatchNormalization, AveragePooling2D
 
 
 def relu_bn(inputs: Tensor) -> Tensor:
-    relu = ReLU()(inputs)
+    relu = ELU()(inputs)
     bn = BatchNormalization()(relu)
     return bn
 
@@ -418,25 +418,26 @@ class classifier:
         inputs = Input(
             shape=inputShape, name="image"
         )
-        num_filters = 16
+        num_filters = 8
 
-        t = BatchNormalization()(inputs)
+        # t = BatchNormalization()(inputs)
+        t = inputs
         t = Conv2D(kernel_size=3,
                    strides=1,
                    filters=num_filters,
                    padding="same")(t)
         t = relu_bn(t)
 
-        num_blocks_list = [2, 5, 5, 5, 5, 2]
+        num_blocks_list = [2, 3, 3, 3, 3, 3, 3, 3, 3, 2]
         for i in range(len(num_blocks_list)):
             num_blocks = num_blocks_list[i]
             for j in range(num_blocks):
                 t = residual_block(t, downsample=(j == 0 and i != 0), filters=num_filters)
             num_filters *= 2
 
-        t = AveragePooling2D(4)(t)
+        # t = AveragePooling2D(4)(t)
         t = Flatten()(t)
-        t = Dense(1024, activation='elu')(t)
+        # t = Dense(1024, activation='elu')(t)
         t = Dense(1024, activation='elu')(t)
 
         outputs = Dense(num_classes, activation='softmax')(t)
