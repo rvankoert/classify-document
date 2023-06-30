@@ -124,7 +124,6 @@ def preprocess(img_path, label, height, width, channels, num_classes) -> np.ndar
 
     # img = tf.image.rgb_to_grayscale(img)
     img = tf.image.resize(img, (height, width))  # rescale to have matching height with target image
-    img = 0.5 - img
 
     label = tf.strings.to_number(label, out_type='int32')
     categorical = tf.one_hot(label, depth=num_classes)
