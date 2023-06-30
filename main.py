@@ -98,13 +98,6 @@ def get_generator(set, training, class_indices):
                  .batch(args.batch_size)
                  .prefetch(AUTOTUNE)
                  ).apply(tf.data.experimental.assert_cardinality(train_batches))
-                     .repeat()
-                     .shuffle(len(train_files))
-                     .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, True), num_parallel_calls=AUTOTUNE,
-                         deterministic=False)
-                     .batch(args.batch_size)
-                     .prefetch(AUTOTUNE)
-                     ).apply(tf.data.experimental.assert_cardinality(train_batches))
     else:
         generator = (generator
                  .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes), num_parallel_calls=AUTOTUNE,
@@ -113,11 +106,6 @@ def get_generator(set, training, class_indices):
                  .batch(args.batch_size)
                  .prefetch(AUTOTUNE)
                  ).apply(tf.data.experimental.assert_cardinality(train_batches))
-                     .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, False), num_parallel_calls=AUTOTUNE,
-                         deterministic=False)
-                     .batch(args.batch_size)
-                     .prefetch(AUTOTUNE)
-                     ).apply(tf.data.experimental.assert_cardinality(train_batches))
     return generator, num_classes, tmp_class_indices, files, tmp_classes
 
 @tf.function
@@ -136,7 +124,6 @@ def preprocess(img_path, label, height, width, channels, num_classes) -> np.ndar
 
     # img = tf.image.rgb_to_grayscale(img)
     img = tf.image.resize(img, (height, width))  # rescale to have matching height with target image
-    img /= 255
     img = 0.5 - img
 
     label = tf.strings.to_number(label, out_type='int32')
