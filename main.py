@@ -6,6 +6,7 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLRO
 from tensorflow.python.data import AUTOTUNE
 from tensorflow.python.ops.image_ops_impl import ResizeMethod
 
+from augmenter import Augmenter
 from utils import *
 from model import *
 import config
@@ -17,6 +18,7 @@ import argparse
 import random
 from pathlib import Path
 from datagenerator import DataGenerator
+
 
 def resize_with_aspect(input):
     return tf.image.resize_with_pad(
@@ -78,7 +80,24 @@ def get_generator(set, training, class_indices):
     train_batches = np.ceil(len(ids) / args.batch_size)
     generator = tf.data.Dataset.from_tensor_slices(train_files)
     if training:
+        augmenter = Augmenter(
+            do_shear=args.do_shear,
+            do_speckle=args.do_speckle,
+            do_rotate=args.do_rotate,
+            do_elastic_transform=args.do_elastic_transform
+        )
+        data_augmentation = augmenter.create_augmentation_sequence()
+
         generator = (generator
+                 .repeat()
+                 .shuffle(len(train_files))
+                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes), num_parallel_calls=AUTOTUNE,
+                    deterministic=False)
+                 .map(lambda x, y: (data_augmentation(x, training=True), y))
+                 .map(lambda x, y: (0.5 - (x / 255), y))
+                 .batch(args.batch_size)
+                 .prefetch(AUTOTUNE)
+                 ).apply(tf.data.experimental.assert_cardinality(train_batches))
                      .repeat()
                      .shuffle(len(train_files))
                      .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, True), num_parallel_calls=AUTOTUNE,
@@ -88,6 +107,12 @@ def get_generator(set, training, class_indices):
                      ).apply(tf.data.experimental.assert_cardinality(train_batches))
     else:
         generator = (generator
+                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes), num_parallel_calls=AUTOTUNE,
+                    deterministic=False)
+                 .map(lambda x, y: (0.5 - (x / 255), y))
+                 .batch(args.batch_size)
+                 .prefetch(AUTOTUNE)
+                 ).apply(tf.data.experimental.assert_cardinality(train_batches))
                      .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, False), num_parallel_calls=AUTOTUNE,
                          deterministic=False)
                      .batch(args.batch_size)
@@ -96,20 +121,22 @@ def get_generator(set, training, class_indices):
     return generator, num_classes, tmp_class_indices, files, tmp_classes
 
 @tf.function
-def preprocess(img_path, label, height, width, channels, num_classes, augment) -> np.ndarray:
+def preprocess(img_path, label, height, width, channels, num_classes) -> np.ndarray:
     # img_path, label, height, width = data
     # print(img_path)
     img = tf.io.read_file(img_path)
     img = tf.image.decode_jpeg(img, channels)
-    if augment:
+    print(type(img))
+    # if augmenter is not None:
     # img = tf.image.random_brightness(img, 0.05)
     # img = tf.image.random_hue(img, 0.08)
     # img = tf.image.random_saturation(img, 0.6, 1.6)
-        img = tf.image.random_contrast(img, 0.7, 1.3)
+    #     img = tf.image.random_contrast(img, 0.7, 1.3)
         # img = tf.keras.preprocessing.image.random_rotation(img, 0.2)
 
     # img = tf.image.rgb_to_grayscale(img)
     img = tf.image.resize(img, (height, width))  # rescale to have matching height with target image
+    img /= 255
     img = 0.5 - img
 
     label = tf.strings.to_number(label, out_type='int32')
@@ -168,6 +195,11 @@ parser.add_argument('--inference_set', metavar='inference_set ', type=str,
                     help='inference_set to use for inferencing')
 parser.add_argument('--deterministic', action='store_true', help='deterministic')
 parser.add_argument('--replace_final', action='store_true', help='replace_final')
+parser.add_argument('--do_shear', action='store_true', help='augment training data with shear')
+parser.add_argument('--do_rotate', action='store_true', help='augment training data with rotation')
+parser.add_argument('--do_elastic_transform', action='store_true', help='augment training data with elastic transformation')
+parser.add_argument('--do_speckle', action='store_true', help='augment training data with data distortion')
+
 
 args = parser.parse_args()
 options = vars(args)
@@ -402,6 +434,7 @@ if args.do_test:
     with open(classes_file, 'r') as file:
         class_indices = eval(file.read().replace('\n', ''))
     label_map = class_indices
+    # test_generator.reset()
     predict = model.predict(
         test_generator
     )
