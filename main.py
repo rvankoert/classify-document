@@ -79,20 +79,20 @@ def get_generator(set, training, class_indices):
     generator = tf.data.Dataset.from_tensor_slices(train_files)
     if training:
         generator = (generator
-                 .repeat()
-                 .shuffle(len(train_files))
-                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, True), num_parallel_calls=AUTOTUNE,
-                    deterministic=False)
-                 .batch(args.batch_size)
-                 .prefetch(AUTOTUNE)
-                 ).apply(tf.data.experimental.assert_cardinality(train_batches))
+                     .repeat()
+                     .shuffle(len(train_files))
+                     .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, True), num_parallel_calls=AUTOTUNE,
+                         deterministic=False)
+                     .batch(args.batch_size)
+                     .prefetch(AUTOTUNE)
+                     ).apply(tf.data.experimental.assert_cardinality(train_batches))
     else:
         generator = (generator
-                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, False), num_parallel_calls=AUTOTUNE,
-                    deterministic=False)
-                 .batch(args.batch_size)
-                 .prefetch(AUTOTUNE)
-                 ).apply(tf.data.experimental.assert_cardinality(train_batches))
+                     .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes, False), num_parallel_calls=AUTOTUNE,
+                         deterministic=False)
+                     .batch(args.batch_size)
+                     .prefetch(AUTOTUNE)
+                     ).apply(tf.data.experimental.assert_cardinality(train_batches))
     return generator, num_classes, tmp_class_indices, files, tmp_classes
 
 @tf.function
@@ -156,17 +156,18 @@ parser.add_argument('--loss', metavar='loss ', type=str, default="categorical_cr
                     help='categorical_crossentropy, binary_crossentropy, mse')
 parser.add_argument('--optimizer', metavar='optimizer ', type=str, default='adamw',
                     help='optimizer: adam, adadelta, rmsprop, sgd, adamw. Default: adamw')
-parser.add_argument('--train_set', metavar='train_set ', type=str, default='/home/rutger/data/republic/train/',
+parser.add_argument('--train_set', metavar='train_set ', type=str, default=None,
                     help='train_set to use for training')
 parser.add_argument('--validation_set', metavar='validation_set ', type=str,
                     default=None,
                     help='validation_set to use for validation')
-parser.add_argument('--test_set', metavar='test_set ', type=str, default='/home/rutger/data/republic/test/',
+parser.add_argument('--test_set', metavar='test_set ', type=str, default=None,
                     help='test_set to use for testing')
 parser.add_argument('--inference_set', metavar='inference_set ', type=str,
-                    default='/home/rutger/data/republic/inference/',
+                    default=None,
                     help='inference_set to use for inferencing')
 parser.add_argument('--deterministic', action='store_true', help='deterministic')
+parser.add_argument('--replace_final', action='store_true', help='replace_final')
 
 args = parser.parse_args()
 options = vars(args)
@@ -183,7 +184,7 @@ validation_generator = None
 classes = None
 class_indices = None
 classes_file = args.output + "/classes.txt"
-if args.existing_model:
+if args.existing_model and not args.replace_final:
     with open(classes_file, 'r') as file:
         class_indices = eval(file.read().replace('\n', ''))
 
@@ -265,11 +266,11 @@ if args.do_train:
     # if args.use_class_weights:
     #     class_weights = {class_id: max_val / num_images for class_id, num_images in counter.items()}
     class_weights = None
-    # model = classifier.build_Xception_imagenet(config.SHAPE, num_classes)
-    # model = classifier.build_vgg16_imagenet(config.SHAPE, num_classes)
-    # model = classifier.build_classifier_model_E(config.SHAPE, num_classes)
-    # model = classifier.build_classifier_model_F(config.SHAPE, num_classes)
-    model = classifier.build_classifier_model_H((args.height, args.width, args.channels), num_classes)
+    model = classifier.build_Xception_imagenet((args.height, args.width, args.channels), num_classes)
+    # model = classifier.build_vgg16_imagenet((args.height, args.width, args.channels), num_classes)
+    # model = classifier.build_classifier_model_E((args.height, args.width, args.channels), num_classes)
+    # model = classifier.build_classifier_model_F((args.height, args.width, args.channels), num_classes)
+    # model = classifier.build_classifier_model_H((args.height, args.width, args.channels), num_classes)
     # model = classifier.build_classifier_model_I((args.height, args.width, args.channels), num_classes)
 
     for layer in model.layers:
@@ -302,6 +303,25 @@ if args.do_train:
         model_to_load = args.existing_model
         print('using model ' + model_to_load)
         model = tf.keras.models.load_model(model_to_load)
+        if args.replace_final:
+            for layer in model.layers:
+                print(layer.name)
+                layer.trainable = False
+
+            last_layer = ""
+            for layer in model.layers:
+                if layer.name == "dense_1":
+                    break
+                last_layer = layer.name
+
+            prediction_model = tf.keras.models.Model(
+                model.get_layer(name="image").input, model.get_layer(name=last_layer).output
+            )
+            x = tf.keras.layers.Dense(num_classes, activation="softmax", name="dense_1")(prediction_model.output)
+            output = tf.keras.layers.Activation('linear', dtype=tf.float32)(x)
+            model = tf.keras.models.Model(
+                inputs=prediction_model.inputs, outputs=output
+            )
 
     model.compile(loss=loss,
                   optimizer=optimizer,
@@ -337,7 +357,7 @@ if args.do_validation:
 
     model = tf.keras.models.load_model(args.output + '/checkpoints/best_val')
 
-    nb_samples = len(validation_files)
+    num_samples = len(validation_files)
     label_map = class_indices
 
     # test_generator.reset()
@@ -369,7 +389,7 @@ if args.do_test:
 
     test_generator = test_datagen.flow_from_directory(
         args.test_set,
-        target_size=(config.SHAPE[0], config.SHAPE[1]),
+        target_size=(args.height, args.width),
         color_mode="rgb",
         shuffle=False,
         class_mode='categorical',
@@ -377,12 +397,11 @@ if args.do_test:
     )
 
     filenames = test_generator.filenames
-    nb_samples = len(filenames)
+    num_samples = len(filenames)
     # label_map = (train_generator.class_indices)
     with open(classes_file, 'r') as file:
         class_indices = eval(file.read().replace('\n', ''))
     label_map = class_indices
-    # test_generator.reset()
     predict = model.predict(
         test_generator
     )
@@ -390,7 +409,7 @@ if args.do_test:
     original_stdout = sys.stdout
     with open('results.txt', 'w') as f:
         sys.stdout = f  # Change the standard output to the file we created.
-        for i in range(nb_samples):
+        for i in range(num_samples):
             try:
                 label = list(label_map.keys())[list(label_map.values()).index(y_classes[i])]
                 print("%s\t%s\t%s\t%s" % (filenames[i], label, y_classes[i], predict[i],))
@@ -408,44 +427,33 @@ if args.do_inference:
     print('using model ' + model_to_load)
     model = tf.keras.models.load_model(model_to_load)
 
-    test_datagen = ImageDataGenerator(rescale=1. / 255)
-    path = Path(args.inference_set)
-    path = path.parent.absolute()
-    target_class = os.path.basename(os.path.normpath(args.inference_set))
-    test_generator = test_datagen.flow_from_directory(
-        path,
-        target_size=(config.SHAPE[0], config.SHAPE[1]),
-        color_mode="rgb",
-        shuffle=False,
-        class_mode='categorical',
-        batch_size=args.batch_size,
-        classes=[target_class],
-    )
+    test_generator, num_classes, class_indices_tmp, training_files, train_classes =\
+        get_generator(args.inference_set, True, class_indices)
 
-    filenames = test_generator.filenames
-    nb_samples = len(filenames)
-
+    num_samples = len(training_files)
     with open(classes_file, 'r') as file:
         class_indices = eval(file.read().replace('\n', ''))
     print('using class mappings: ')
     print(class_indices)
+    print(num_samples)
     label_map = class_indices
 
-    # test_generator.reset()
     predict = model.predict(
-        test_generator
+        test_generator,
+        verbose=0
     )
     y_classes = predict.argmax(axis=-1)
-    original_stdout = sys.stdout
+    # original_stdout = sys.stdout
     results_file = args.output + '/results.txt'
     print('writing results to ' + results_file)
+    # predict = pd.DataFrame(predict, columns=['predictions']).to_csv('prediction.csv')
     with open(results_file, 'w') as f:
-        sys.stdout = f  # Change the standard output to the file we created.
-        for i in range(nb_samples):
+        # sys.stdout = f  # Change the standard output to the file we created.
+        for i in range(num_samples):
             try:
-                label = list(label_map.keys())[list(label_map.values()).index(y_classes[i])]
-                print("%s\t%s\t%s\t%s" % (filenames[i], label, y_classes[i], predict[i],))
+                label = label_map[y_classes[i]]
+                predicted = str(predict[i]).replace("\n", " ")
+                f.write("%s\t%s\t%s\t%s\n" % (training_files[i][0], label, y_classes[i], predicted,))
             except:
                 print("An exception occurred")
-
-        sys.stdout = original_stdout
+        f.close()
