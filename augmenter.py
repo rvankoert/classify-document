@@ -50,7 +50,8 @@ class Augmenter(tf.keras.utils.Sequence):
             image = tfa.image.shear_x(image, random_shear, replace=0)
             image, image, image = tf.split(image, 3, axis=2)
 
-        return image
+        return tf.image.crop_to_bounding_box(image, int((tf.shape(image)[0] - image_height) / 2),
+                                             int((tf.shape(image)[1] - image_width) / 2), image_height, image_width)
 
     def create_augmentation_sequence(self) -> tf.keras.Sequential:
         sequential = tf.keras.Sequential()
@@ -62,7 +63,7 @@ class Augmenter(tf.keras.utils.Sequence):
             sequential.add(shear_lambda)
 
         if self.do_rotate:
-            rotation = tf.keras.layers.RandomRotation(0.05, seed=self.seed)
+            rotation = tf.keras.layers.RandomRotation(0.05, seed=self.seed, fill_mode="constant")
             sequential.add(rotation)
 
         if self.do_elastic_transform:
