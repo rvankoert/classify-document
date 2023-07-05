@@ -93,8 +93,8 @@ def get_generator(set, training, class_indices):
                  .shuffle(len(train_files))
                  .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes), num_parallel_calls=AUTOTUNE,
                     deterministic=False)
-                 .map(lambda x, y: (data_augmentation(x, training=True), y))
-                 .map(lambda x, y: (0.5 - (x / 255), y))
+                 .map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=AUTOTUNE)
+                 .map(lambda x, y: (0.5 - (x / 255), y), num_parallel_calls=AUTOTUNE)
                  .batch(args.batch_size)
                  .prefetch(AUTOTUNE)
                  ).apply(tf.data.experimental.assert_cardinality(train_batches))
@@ -102,7 +102,7 @@ def get_generator(set, training, class_indices):
         generator = (generator
                  .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes), num_parallel_calls=AUTOTUNE,
                     deterministic=False)
-                 .map(lambda x, y: (0.5 - (x / 255), y))
+                 .map(lambda x, y: (0.5 - (x / 255), y), num_parallel_calls=AUTOTUNE)
                  .batch(args.batch_size)
                  .prefetch(AUTOTUNE)
                  ).apply(tf.data.experimental.assert_cardinality(train_batches))
