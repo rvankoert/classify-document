@@ -1,23 +1,20 @@
+import argparse
 import os
-from collections import Counter, OrderedDict
+import random
+import sys
+from collections import Counter
 
+import tensorflow as tf
 from keras_preprocessing.image import ImageDataGenerator
+from sklearn.metrics import classification_report, confusion_matrix
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.python.data import AUTOTUNE
 from tensorflow.python.ops.image_ops_impl import ResizeMethod
 
-from augmenter import Augmenter
-from utils import *
-from model import *
 import config
-import sys
-
-import tensorflow as tf
-from sklearn.metrics import classification_report, confusion_matrix
-import argparse
-import random
-from pathlib import Path
-from datagenerator import DataGenerator
+from augmenter import Augmenter
+from model import *
+from utils import *
 
 
 def resize_with_aspect(input):
@@ -26,20 +23,51 @@ def resize_with_aspect(input):
         antialias=False
     )
 
-def get_generator(set, training, class_indices):
+
+def get_generator(set, training, class_indices, extra_set=None):
     ids = []
     labels = []
+    extra_labels = []
     files = []
 
-    for directory in os.scandir(set):
-        if directory.is_dir():
-            tmp_label = directory.name
-            for file in os.scandir(os.path.join(set, tmp_label)):
-                if file.is_file():
-                    # print(file.path)
-                    ids.append(file.path)
-                    labels.append(tmp_label)
-                    files.append((file.path, tmp_label))
+    if (not os.path.isdir(set)):
+        print(set + ' is not a directory')
+        # read file
+        with open(set) as f:
+            for line in f:
+                split = line.strip().split(",")
+                img = split[0].strip()
+                label = split[1].strip()
+                ids.append(img)
+                labels.append(label)
+                files.append((img, label))
+    else:
+        for directory in os.scandir(set):
+            if directory.is_dir():
+                tmp_label = directory.name
+                for file in os.scandir(os.path.join(set, tmp_label)):
+                    if file.is_file():
+                        print(file.path)
+                        ids.append(file.path)
+                        labels.append(tmp_label)
+                        files.append((file.path, tmp_label))
+
+    if extra_set is not None:
+        print('not NONE')
+        if (not os.path.isdir(extra_set)):
+            with open(extra_set) as f:
+                for line in f:
+                    split = line.strip().split(",")
+                    label = split[1].strip()
+                    extra_labels.append(label)
+        else:
+            for directory in os.scandir(extra_set):
+                if directory.is_dir():
+                    tmp_label = directory.name
+                    for file in os.scandir(os.path.join(extra_set, tmp_label)):
+                        if file.is_file():
+                            print(file.path)
+                            extra_labels.append(tmp_label)
 
     counter = 0
     add_classes = False
@@ -49,7 +77,7 @@ def get_generator(set, training, class_indices):
     else:
         tmp_class_indices = class_indices
 
-    for tmp_label in labels:
+    for tmp_label in labels + extra_labels:
         if tmp_label in tmp_class_indices:
             continue
         if add_classes:
@@ -89,24 +117,27 @@ def get_generator(set, training, class_indices):
         data_augmentation = augmenter.create_augmentation_sequence()
 
         generator = (generator
-                 .repeat()
-                 .shuffle(len(train_files))
-                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes), num_parallel_calls=AUTOTUNE,
-                    deterministic=False)
-                 .map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=AUTOTUNE)
-                 .map(lambda x, y: (0.5 - (x / 255), y), num_parallel_calls=AUTOTUNE)
-                 .batch(args.batch_size)
-                 .prefetch(AUTOTUNE)
-                 ).apply(tf.data.experimental.assert_cardinality(train_batches))
+                     .repeat()
+                     .shuffle(len(train_files))
+                     .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes),
+                          num_parallel_calls=AUTOTUNE,
+                          deterministic=False)
+                     .map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=AUTOTUNE)
+                     .map(lambda x, y: (0.5 - (x / 255), y), num_parallel_calls=AUTOTUNE)
+                     .batch(args.batch_size)
+                     .prefetch(AUTOTUNE)
+                     ).apply(tf.data.experimental.assert_cardinality(train_batches))
     else:
         generator = (generator
-                 .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes), num_parallel_calls=AUTOTUNE,
-                    deterministic=False)
-                 .map(lambda x, y: (0.5 - (x / 255), y), num_parallel_calls=AUTOTUNE)
-                 .batch(args.batch_size)
-                 .prefetch(AUTOTUNE)
-                 ).apply(tf.data.experimental.assert_cardinality(train_batches))
+                     .map(lambda x: preprocess(x[0], x[1], args.height, args.width, args.channels, num_classes),
+                          num_parallel_calls=AUTOTUNE,
+                          deterministic=False)
+                     .map(lambda x, y: (0.5 - (x / 255), y), num_parallel_calls=AUTOTUNE)
+                     .batch(args.batch_size)
+                     .prefetch(AUTOTUNE)
+                     ).apply(tf.data.experimental.assert_cardinality(train_batches))
     return generator, num_classes, tmp_class_indices, files, tmp_classes
+
 
 @tf.function
 def preprocess(img_path, label, height, width, channels, num_classes) -> np.ndarray:
@@ -120,7 +151,7 @@ def preprocess(img_path, label, height, width, channels, num_classes) -> np.ndar
     # img = tf.image.random_hue(img, 0.08)
     # img = tf.image.random_saturation(img, 0.6, 1.6)
     #     img = tf.image.random_contrast(img, 0.7, 1.3)
-        # img = tf.keras.preprocessing.image.random_rotation(img, 0.2)
+    # img = tf.keras.preprocessing.image.random_rotation(img, 0.2)
 
     # img = tf.image.rgb_to_grayscale(img)
     img = tf.image.resize(img, (height, width))  # rescale to have matching height with target image
@@ -129,7 +160,6 @@ def preprocess(img_path, label, height, width, channels, num_classes) -> np.ndar
     categorical = tf.one_hot(label, depth=num_classes)
 
     return img, categorical
-
 
 
 parser = argparse.ArgumentParser(description='Process some integers.')
@@ -157,7 +187,6 @@ parser.add_argument('--output', metavar='output', type=str, default='output',
 parser.add_argument('--do_pretrain', help='do_pretrain', action='store_true')
 parser.add_argument('--pre_train_epochs', metavar='pre_train_epochs', type=int, default=1,
                     help='pre_train_epochs to be used')
-parser.add_argument('--do_train', help='train', action='store_true')
 parser.add_argument('--use_class_weights', action='store_true',
                     help='use_class_weights')
 parser.add_argument('--do_validation', action='store_true', help='validation')
@@ -183,9 +212,9 @@ parser.add_argument('--deterministic', action='store_true', help='deterministic'
 parser.add_argument('--replace_final', action='store_true', help='replace_final')
 parser.add_argument('--do_shear', action='store_true', help='augment training data with shear')
 parser.add_argument('--do_rotate', action='store_true', help='augment training data with rotation')
-parser.add_argument('--do_elastic_transform', action='store_true', help='augment training data with elastic transformation')
+parser.add_argument('--do_elastic_transform', action='store_true',
+                    help='augment training data with elastic transformation')
 parser.add_argument('--do_speckle', action='store_true', help='augment training data with data distortion')
-
 
 args = parser.parse_args()
 options = vars(args)
@@ -208,54 +237,13 @@ if args.existing_model and not args.replace_final:
 
 print(class_indices)
 if args.validation_set:
-    # validation_datagen = ImageDataGenerator(
-    #     rescale=(1. / 255),
-    #     # preserve_aspect_ratio=True
-    #
-    #     # preprocessing_function=tf.keras.applications.xception.preprocess_input
-    # )
-    #
-    # validation_generatorold = validation_datagen.flow_from_directory(
-    #     args.validation_set,
-    #     target_size=(299,299),
-    #     # preprocessing_function= resize_with_aspect,
-    #     batch_size=args.batch_size,
-    #     class_mode='categorical',
-    #     classes=classes,
-    #     shuffle=False
-    # )  # set as validation data
-    validation_generator, num_classes, class_indices, validation_files, validation_classes = get_generator(args.validation_set, False, class_indices)
+    validation_generator, num_classes, class_indices, validation_files, validation_classes = get_generator(
+        args.validation_set, False, class_indices, args.train_set)
 
-    # print(class_indices)
-
-
-if args.do_train:
-    # train_datagen = ImageDataGenerator(
-    #     rescale=(1. / 255),
-    #     rotation_range=20,
-    #     width_shift_range=0.2,
-    #     height_shift_range=0.2,
-    #     shear_range=20,
-    #     zoom_range=[0.8, 1.2],
-    #     brightness_range=[0.8, 1.2],
-    #     channel_shift_range=20,
-    #     # preprocessing_function=tf.keras.applications.xception.preprocess_input
-    # )
-    #
-    # train_generator = train_datagen.flow_from_directory(
-    #     args.train_set,
-    #     target_size=(config.SHAPE[0], config.SHAPE[1]),
-    #     # preprocessing_function= resize_with_aspect,
-    #     batch_size=args.batch_size,
-    #     color_mode=config.COLOR_MODE,
-    #     class_mode='categorical',
-    #     classes=classes,
-    #     shuffle=True,
-    # )  # set as training data
-
-    # datalist = OrderedDict()
-    training_generator, num_classes, class_indices_tmp, training_files, train_classes = get_generator(args.train_set, True, class_indices)
-
+if args.train_set:
+    training_generator, num_classes, class_indices_tmp, training_files, train_classes = get_generator(args.train_set,
+                                                                                                      True,
+                                                                                                      class_indices)
     if class_indices is None:
         class_indices = class_indices_tmp
 
@@ -267,7 +255,7 @@ if args.do_train:
     text_file.close()
 
     monitor = 'accuracy'
-    if args.do_validation:
+    if args.validation_set:
         monitor = 'val_accuracy'
     earlyStopping = EarlyStopping(monitor='val_accuracy', patience=20, verbose=0, mode='max')
     mcp_save = ModelCheckpoint(args.output + '/checkpoints/best_val/', save_best_only=True, monitor=monitor,
@@ -276,14 +264,14 @@ if args.do_train:
                                        cooldown=3,
                                        mode='max')
 
-    # counter = Counter(train_generator.classes)
+    counter = Counter(train_classes)
     # print(train_generator.classes)
     # num_classes = len(counter)
-    # max_val = float(max(counter.values()))
+    max_val = float(max(counter.values()))
     # class_weights = None
-    # if args.use_class_weights:
-    #     class_weights = {class_id: max_val / num_images for class_id, num_images in counter.items()}
     class_weights = None
+    if args.use_class_weights:
+        class_weights = {class_id: max_val / num_images for class_id, num_images in counter.items()}
     model = classifier.build_Xception_imagenet((args.height, args.width, args.channels), num_classes)
     # model = classifier.build_vgg16_imagenet((args.height, args.width, args.channels), num_classes)
     # model = classifier.build_classifier_model_E((args.height, args.width, args.channels), num_classes)
@@ -313,7 +301,7 @@ if args.do_train:
         optimizer = tf.keras.optimizers.experimental.AdamW(learning_rate=args.learning_rate)
     if args.optimizer == "adadelta":
         optimizer = tf.keras.optimizers.Adadelta(learning_rate=args.learning_rate, rho=0.95, epsilon=1e-07,
-                                              name="Adadelta")
+                                                 name="Adadelta")
     if args.optimizer == "rmsprop":
         optimizer = tf.keras.optimizers.RMSprop(learning_rate=args.learning_rate)
 
@@ -372,7 +360,6 @@ if args.do_train:
     utils.plot_training(history, args.output + '/plot.png')
 
 if args.do_validation:
-
     model = tf.keras.models.load_model(args.output + '/checkpoints/best_val')
 
     num_samples = len(validation_files)
@@ -385,7 +372,7 @@ if args.do_validation:
     y_classes = predict.argmax(axis=-1)
     # for i in range(nb_samples):
     #     label = list(label_map.keys())[list(label_map.values()).index(y_classes[i])]
-        # print("%s\t%s\t%s\t%s" % (filenames[i], label, y_classes[i], predict[i],))
+    # print("%s\t%s\t%s\t%s" % (filenames[i], label, y_classes[i], predict[i],))
 
     y_pred = np.argmax(predict, axis=1)
     # print(validation_classes)
@@ -446,7 +433,7 @@ if args.do_inference:
     print('using model ' + model_to_load)
     model = tf.keras.models.load_model(model_to_load)
 
-    test_generator, num_classes, class_indices_tmp, training_files, train_classes =\
+    test_generator, num_classes, class_indices_tmp, training_files, train_classes = \
         get_generator(args.inference_set, True, class_indices)
 
     num_samples = len(training_files)
